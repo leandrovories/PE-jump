@@ -34,22 +34,26 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
   const fetchRecords = () => {
     setLoading(true);
     
-    // Using a pure query without time filters to ensure ALL devices see the exact same data
-    // Local clock discrepancies between iPads/phones will no longer hide records.
-    db.collection('projectRecords').orderBy('createdAt', 'desc').limit(1000).get().then(res => {
-      let newRecords = res.data as ProjectRecordType[];
+    // Removing orderBy to bypass Tencent CloudBase database index requirements.
+    // Fetch everything and sort directly in the browser to guarantee it works.
+    db.collection('projectRecords').limit(1000).get().then(res => {
+      let newRecords = res.data as any[];
       
-      // Client-side filtering for 3 hours to prevent CloudBase index/clock dropouts
+      // CloudBase document IDs are usually in _id
+      newRecords = newRecords.map(r => ({...r, id: r._id }));
+
+      // Client-side filtering for 3 hours
       const threeHoursAgoMs = Date.now() - 3 * 60 * 60 * 1000;
       newRecords = newRecords.filter(r => new Date(r.createdAt).getTime() >= threeHoursAgoMs);
 
-      // CloudBase document IDs are usually in _id
-      newRecords = newRecords.map(r => ({...r, id: (r as any)._id }));
+      // Sort freshly by createdAt locally
+      newRecords.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      setRecords(newRecords);
+      setRecords(newRecords as ProjectRecordType[]);
       setLoading(false);
     }).catch(error => {
-      handleCloudBaseError(error, OperationType.LIST, 'projectRecords');
+      console.error(error);
+      alert("获取数据失败，请在控制台检查集合名称或权限！\n错误信息: " + error.message);
       setLoading(false);
     });
   };
@@ -57,22 +61,26 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
   useEffect(() => {
     if (!isAuthenticated) return;
     
-    // Subscribing to ALL real-time updates to ensure absolute data synchronization across devices
-    const watcher = db.collection('projectRecords').orderBy('createdAt', 'desc').limit(1000).watch({
+    // Subscribing to real-time updates (no orderBy to bypass index needs)
+    const watcher = db.collection('projectRecords').limit(1000).watch({
       onChange: (snapshot) => {
         let newRecords = snapshot.docs as any[];
         
+        newRecords = newRecords.map(r => ({...r, id: r._id }));
+
         // Filter out records older than 3 hours dynamically on the client
         const threeHoursAgoMs = Date.now() - 3 * 60 * 60 * 1000;
         newRecords = newRecords.filter(r => new Date(r.createdAt).getTime() >= threeHoursAgoMs);
         
-        newRecords = newRecords.map(r => ({...r, id: r._id }));
+        // Sort safely exactly as we want it on the client
+        newRecords.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         setRecords(newRecords as ProjectRecordType[]);
         setLoading(false);
       },
       onError: (error) => {
-        handleCloudBaseError(error, OperationType.LIST, 'projectRecords');
+        console.error(error);
+        alert("实时连接断开: " + error.message);
         setLoading(false);
       }
     });
