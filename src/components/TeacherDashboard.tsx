@@ -36,7 +36,7 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
     
     // Using a pure query without time filters to ensure ALL devices see the exact same data
     // Local clock discrepancies between iPads/phones will no longer hide records.
-    db.collection('projectRecords').orderBy('createdAt', 'desc').get().then(res => {
+    db.collection('projectRecords').orderBy('createdAt', 'desc').limit(1000).get().then(res => {
       let newRecords = res.data as ProjectRecordType[];
       
       // Client-side filtering for 3 hours to prevent CloudBase index/clock dropouts
@@ -58,7 +58,7 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
     if (!isAuthenticated) return;
     
     // Subscribing to ALL real-time updates to ensure absolute data synchronization across devices
-    const watcher = db.collection('projectRecords').orderBy('createdAt', 'desc').watch({
+    const watcher = db.collection('projectRecords').orderBy('createdAt', 'desc').limit(1000).watch({
       onChange: (snapshot) => {
         let newRecords = snapshot.docs as any[];
         

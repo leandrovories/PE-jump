@@ -40,6 +40,7 @@ export default function SimpleProjectView({ projectId, projectName, onBack }: Si
       createdAt: new Date().toISOString()
     }).catch(err => {
       console.error("Failed to save record:", err);
+      alert("数据保存失败: " + err.message + "\n请检查集合是否创建，或权限是否打开！");
     });
   };
 
