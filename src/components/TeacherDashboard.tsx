@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, onSnapshot, deleteDoc, doc, getDocs, where } from 'firebase/firestore';
-import { LogOut, Trash2, ArrowLeft, Search, Star, Medal } from 'lucide-react';
+import { LogOut, Trash2, ArrowLeft, Search, Star, Medal, RefreshCw } from 'lucide-react';
 
 interface TeacherDashboardProps {
   onBack: () => void;
@@ -32,24 +30,28 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
+  const fetchRecords = async () => {
+    try {
+      const res = await fetch("/api/records");
+      if (res.ok) {
+        const data = await res.json();
+        setRecords(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch records:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!isAuthenticated) return;
-
-    const q = query(collection(db, 'projectRecords'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const newRecords = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ProjectRecordType[];
-      setRecords(newRecords);
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'projectRecords');
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    
+    fetchRecords();
+    
+    // Simple polling for real-time sync across devices
+    const interval = setInterval(fetchRecords, 5000);
+    return () => clearInterval(interval);
   }, [isAuthenticated]);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -70,10 +72,10 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
   const handleDeleteStudent = async (studentId: string) => {
     if (window.confirm(`确定要清空 ${studentId} 的所有考核记录吗？`)) {
       try {
-        const studentRecords = records.filter(r => r.studentId === studentId);
-        await Promise.all(studentRecords.map(r => deleteDoc(doc(db, 'projectRecords', r.id))));
+        await fetch(`/api/records/student/${studentId}`, { method: 'DELETE' });
+        await fetchRecords(); // Refresh after deletion
       } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `projectRecords`);
+        console.error("Failed to delete records:", error);
       }
     }
   };
@@ -146,6 +148,9 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
           <h1 className="text-[20px] font-bold text-[#1e293b]">四项考核成绩汇总表</h1>
         </div>
         <div className="flex items-center space-x-4">
+          <button onClick={fetchRecords} className="text-[#64748b] hover:text-[#2563eb] transition-colors p-2 rounded-full hover:bg-blue-50" title="手动刷新数据">
+            <RefreshCw className="w-5 h-5" />
+          </button>
           <span className="text-[14px] font-medium text-[#10b981] bg-[#f0fdf4] px-3 py-1 rounded-full border border-[#bbf7d0]">已通过密码身份验证</span>
           <button 
             onClick={handleLogout}

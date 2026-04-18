@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { db, auth } from '../lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
 import { ArrowLeft, Star, Save, CheckCircle2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ViewState } from '../App';
@@ -33,12 +31,15 @@ export default function SimpleProjectView({ projectId, projectName, onBack }: Si
     const stars = criteria.filter(c => c).length;
     
     // Fire and forget, no await
-    addDoc(collection(db, 'projectRecords'), {
-      studentId,
-      projectId,
-      stars,
-      teacherId: auth.currentUser?.uid || 'anonymous',
-      createdAt: new Date().toISOString()
+    fetch('/api/records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studentId,
+        projectId,
+        stars,
+        teacherId: 'anonymous'
+      })
     }).catch(err => {
       console.error("Failed to save record:", err);
     });
