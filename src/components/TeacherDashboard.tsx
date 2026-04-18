@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, onSnapshot, deleteDoc, doc, getDocs, orderBy, Timestamp } from 'firebase/firestore';
+import { db, handleCloudBaseError, OperationType } from '../lib/cloudbase';
 import { LogOut, Trash2, ArrowLeft, Search, Star, Medal, RefreshCw } from 'lucide-react';
 
 interface TeacherDashboardProps {
@@ -37,25 +36,20 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
     
     // Using a pure query without time filters to ensure ALL devices see the exact same data
     // Local clock discrepancies between iPads/phones will no longer hide records.
-    const q = query(
-      collection(db, 'projectRecords'),
-      orderBy('createdAt', 'desc')
-    );
-
-    getDocs(q).then(snapshot => {
-      let newRecords = snapshot.docs.map(d => ({
-        id: d.id,
-        ...d.data()
-      })) as ProjectRecordType[];
+    db.collection('projectRecords').orderBy('createdAt', 'desc').get().then(res => {
+      let newRecords = res.data as ProjectRecordType[];
       
-      // Client-side filtering for 3 hours to prevent Firebase index/clock dropouts
+      // Client-side filtering for 3 hours to prevent CloudBase index/clock dropouts
       const threeHoursAgoMs = Date.now() - 3 * 60 * 60 * 1000;
       newRecords = newRecords.filter(r => new Date(r.createdAt).getTime() >= threeHoursAgoMs);
+
+      // CloudBase document IDs are usually in _id
+      newRecords = newRecords.map(r => ({...r, id: (r as any)._id }));
 
       setRecords(newRecords);
       setLoading(false);
     }).catch(error => {
-      handleFirestoreError(error, OperationType.LIST, 'projectRecords');
+      handleCloudBaseError(error, OperationType.LIST, 'projectRecords');
       setLoading(false);
     });
   };
@@ -64,29 +58,26 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
     if (!isAuthenticated) return;
     
     // Subscribing to ALL real-time updates to ensure absolute data synchronization across devices
-    const q = query(
-      collection(db, 'projectRecords'),
-      orderBy('createdAt', 'desc')
-    );
+    const watcher = db.collection('projectRecords').orderBy('createdAt', 'desc').watch({
+      onChange: (snapshot) => {
+        let newRecords = snapshot.docs as any[];
+        
+        // Filter out records older than 3 hours dynamically on the client
+        const threeHoursAgoMs = Date.now() - 3 * 60 * 60 * 1000;
+        newRecords = newRecords.filter(r => new Date(r.createdAt).getTime() >= threeHoursAgoMs);
+        
+        newRecords = newRecords.map(r => ({...r, id: r._id }));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let newRecords = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ProjectRecordType[];
-      
-      // Filter out records older than 3 hours dynamically on the client
-      const threeHoursAgoMs = Date.now() - 3 * 60 * 60 * 1000;
-      newRecords = newRecords.filter(r => new Date(r.createdAt).getTime() >= threeHoursAgoMs);
-      
-      setRecords(newRecords);
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'projectRecords');
-      setLoading(false);
+        setRecords(newRecords as ProjectRecordType[]);
+        setLoading(false);
+      },
+      onError: (error) => {
+        handleCloudBaseError(error, OperationType.LIST, 'projectRecords');
+        setLoading(false);
+      }
     });
 
-    return () => unsubscribe();
+    return () => watcher.close();
   }, [isAuthenticated]);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -108,9 +99,9 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
     if (window.confirm(`确定要清空 ${studentId} 的所有考核记录吗？`)) {
       try {
         const studentRecords = records.filter(r => r.studentId === studentId);
-        await Promise.all(studentRecords.map(r => deleteDoc(doc(db, 'projectRecords', r.id))));
+        await Promise.all(studentRecords.map(r => db.collection('projectRecords').doc(r.id).remove()));
       } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `projectRecords`);
+        handleCloudBaseError(error, OperationType.DELETE, `projectRecords`);
       }
     }
   };
