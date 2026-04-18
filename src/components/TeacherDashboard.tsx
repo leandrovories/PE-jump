@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, onSnapshot, deleteDoc, doc, getDocs, where, Timestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, deleteDoc, doc, getDocs, orderBy, Timestamp } from 'firebase/firestore';
 import { LogOut, Trash2, ArrowLeft, Search, Star, Medal, RefreshCw } from 'lucide-react';
 
 interface TeacherDashboardProps {
@@ -35,20 +35,23 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
   const fetchRecords = () => {
     setLoading(true);
     
-    // Automatically filter old records when refreshing/fetching
-    const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
-    
-    // Set up standard query
+    // Using a pure query without time filters to ensure ALL devices see the exact same data
+    // Local clock discrepancies between iPads/phones will no longer hide records.
     const q = query(
       collection(db, 'projectRecords'),
-      where('createdAt', '>=', threeHoursAgo)
+      orderBy('createdAt', 'desc')
     );
 
     getDocs(q).then(snapshot => {
-      const newRecords = snapshot.docs.map(d => ({
+      let newRecords = snapshot.docs.map(d => ({
         id: d.id,
         ...d.data()
       })) as ProjectRecordType[];
+      
+      // Client-side filtering for 3 hours to prevent Firebase index/clock dropouts
+      const threeHoursAgoMs = Date.now() - 3 * 60 * 60 * 1000;
+      newRecords = newRecords.filter(r => new Date(r.createdAt).getTime() >= threeHoursAgoMs);
+
       setRecords(newRecords);
       setLoading(false);
     }).catch(error => {
@@ -60,18 +63,22 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
   useEffect(() => {
     if (!isAuthenticated) return;
     
-    // Subscribing to real-time updates for recent data
-    const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+    // Subscribing to ALL real-time updates to ensure absolute data synchronization across devices
     const q = query(
       collection(db, 'projectRecords'),
-      where('createdAt', '>=', threeHoursAgo)
+      orderBy('createdAt', 'desc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const newRecords = snapshot.docs.map(doc => ({
+      let newRecords = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as ProjectRecordType[];
+      
+      // Filter out records older than 3 hours dynamically on the client
+      const threeHoursAgoMs = Date.now() - 3 * 60 * 60 * 1000;
+      newRecords = newRecords.filter(r => new Date(r.createdAt).getTime() >= threeHoursAgoMs);
+      
       setRecords(newRecords);
       setLoading(false);
     }, (error) => {
