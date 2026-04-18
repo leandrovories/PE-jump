@@ -1,8 +1,10 @@
 {
-  "apiKey": "TODO_API_KEY",
-  "authDomain": "TODO_AUTH_DOMAIN",
-  "projectId": "TODO_PROJECT_ID",
-  "storageBucket": "TODO_STORAGE_BUCKET",
-  "messagingSenderId": "TODO_MESSAGING_SENDER_ID",
-  "appId": "TODO_APP_ID"
+  "projectId": "gen-lang-client-0219342149",
+  "appId": "1:585679029681:web:077557f30c6c6d625aa990",
+  "apiKey": "AIzaSyBUmLccmeVLg3jW13IqWWglnF6xainCYNU",
+  "authDomain": "gen-lang-client-0219342149.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-0431474a-9090-4777-949d-ba1ee57c9f92",
+  "storageBucket": "gen-lang-client-0219342149.firebasestorage.app",
+  "messagingSenderId": "585679029681",
+  "measurementId": ""
 }

@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { collection, query, onSnapshot, deleteDoc, doc, getDocs, where, Timestamp } from 'firebase/firestore';
 import { LogOut, Trash2, ArrowLeft, Search, Star, Medal, RefreshCw } from 'lucide-react';
 
 interface TeacherDashboardProps {
@@ -30,28 +32,54 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const fetchRecords = async () => {
-    try {
-      const res = await fetch("/api/records");
-      if (res.ok) {
-        const data = await res.json();
-        setRecords(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch records:", err);
-    } finally {
+  const fetchRecords = () => {
+    setLoading(true);
+    
+    // Automatically filter old records when refreshing/fetching
+    const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+    
+    // Set up standard query
+    const q = query(
+      collection(db, 'projectRecords'),
+      where('createdAt', '>=', threeHoursAgo)
+    );
+
+    getDocs(q).then(snapshot => {
+      const newRecords = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      })) as ProjectRecordType[];
+      setRecords(newRecords);
       setLoading(false);
-    }
+    }).catch(error => {
+      handleFirestoreError(error, OperationType.LIST, 'projectRecords');
+      setLoading(false);
+    });
   };
 
   useEffect(() => {
     if (!isAuthenticated) return;
     
-    fetchRecords();
-    
-    // Simple polling for real-time sync across devices
-    const interval = setInterval(fetchRecords, 5000);
-    return () => clearInterval(interval);
+    // Subscribing to real-time updates for recent data
+    const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+    const q = query(
+      collection(db, 'projectRecords'),
+      where('createdAt', '>=', threeHoursAgo)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const newRecords = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as ProjectRecordType[];
+      setRecords(newRecords);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'projectRecords');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [isAuthenticated]);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -72,10 +100,10 @@ export default function TeacherDashboard({ onBack }: TeacherDashboardProps) {
   const handleDeleteStudent = async (studentId: string) => {
     if (window.confirm(`确定要清空 ${studentId} 的所有考核记录吗？`)) {
       try {
-        await fetch(`/api/records/student/${studentId}`, { method: 'DELETE' });
-        await fetchRecords(); // Refresh after deletion
+        const studentRecords = records.filter(r => r.studentId === studentId);
+        await Promise.all(studentRecords.map(r => deleteDoc(doc(db, 'projectRecords', r.id))));
       } catch (error) {
-        console.error("Failed to delete records:", error);
+        handleFirestoreError(error, OperationType.DELETE, `projectRecords`);
       }
     }
   };

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { usePoseLandmarker } from '../hooks/usePoseLandmarker';
 import { processFrame, initialJumpState, evaluateJump, JumpState } from '../lib/scoring';
+import { db, storage, auth } from '../lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { CheckCircle2, XCircle, Play, Square, User, Activity, Star } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -108,16 +110,13 @@ export default function StudentView({ onBack }: StudentViewProps) {
     setResult({ stars: finalEval.stars, suggestions: finalEval.suggestions });
     
     // Fire and forget to avoid blocking UI
-    fetch('/api/records', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        studentId,
-        projectId: 'jump',
-        stars: finalEval.stars,
-        suggestions: finalEval.suggestions.join(' '),
-        teacherId: 'anonymous'
-      })
+    addDoc(collection(db, 'projectRecords'), {
+      studentId,
+      projectId: 'jump',
+      stars: finalEval.stars,
+      suggestions: finalEval.suggestions.join(' '),
+      teacherId: auth.currentUser?.uid || 'anonymous',
+      createdAt: new Date().toISOString()
     }).catch((err) => {
       console.error("Failed to save record:", err);
     });
