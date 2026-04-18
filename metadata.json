@@ -1,0 +1,8 @@
+{
+  "name": "跳跃小裁判",
+  "description": "体育课堂跳跃动作实时评分Web应用",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": []
+}

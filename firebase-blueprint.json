@@ -1,0 +1,23 @@
+{
+  "entities": {
+    "ProjectRecord": {
+      "title": "ProjectRecord",
+      "description": "Unified stars record for any of the projects.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string", "description": "Student ID, e.g., '1号'" },
+        "projectId": { "type": "string", "enum": ["jump", "p1", "p2", "p3"], "description": "Which project this record is for" },
+        "stars": { "type": "number", "description": "Star rating 0-3 based on how many criteria were met" },
+        "teacherId": { "type": "string", "description": "UID of the teacher who owns this record (or anonymous)" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "projectId", "stars", "teacherId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/projectRecords/{recordId}": {
+      "schema": { "$ref": "#/entities/ProjectRecord" },
+      "description": "Stores all project evaluation records."
+    }
+  }
+}
