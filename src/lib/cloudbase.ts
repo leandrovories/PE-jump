@@ -10,17 +10,25 @@ export const auth = app.auth({
 
 export const db = app.database();
 
-// Automatically sign in anonymously for local data access without accounts
-export const signInAnonymous = async () => {
-  const loginState = await auth.getLoginState();
-  if (!loginState) {
-    await auth.anonymousAuthProvider().signIn();
-  }
-};
+let signInPromise: Promise<void> | null = null;
 
-signInAnonymous().catch(error => {
-  console.error("Anonymous auth failed", error);
-});
+export const signInAnonymous = async () => {
+  if (signInPromise) return signInPromise;
+  
+  signInPromise = (async () => {
+    try {
+      const loginState = await auth.getLoginState();
+      if (!loginState) {
+        await auth.anonymousAuthProvider().signIn();
+      }
+    } catch (e) {
+      signInPromise = null; // reset if fails
+      throw e;
+    }
+  })();
+  
+  return signInPromise;
+};
 
 export enum OperationType {
   CREATE = 'create',
